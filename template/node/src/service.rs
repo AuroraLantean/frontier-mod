@@ -17,7 +17,6 @@ use sc_keystore::LocalKeystore;
 use sc_network::warp_request_handler::WarpSyncProvider;
 use sc_service::{error::Error as ServiceError, BasePath, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_consensus::SlotData;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_core::U256;
 use sp_inherents::{InherentData, InherentIdentifier};
@@ -246,7 +245,7 @@ pub fn new_partial(
 			frontier_backend.clone(),
 		);
 
-		let slot_duration = sc_consensus_aura::slot_duration(&*client)?.slot_duration();
+		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 		let target_gas_price = cli.run.target_gas_price;
 
 		let import_queue =
@@ -258,13 +257,13 @@ pub fn new_partial(
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
-						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
 							slot_duration,
 						);
 
 					let dynamic_fee =
-						pallet_dynamic_fee::InherentDataProvider(U256::from(target_gas_price));
+						fp_dynamic_fee::InherentDataProvider(U256::from(target_gas_price));
 
 					Ok((timestamp, slot, dynamic_fee))
 				},
@@ -371,7 +370,7 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 		})?;
 
 	// Channel for the rpc handler to communicate with the authorship task.
-	let (command_sink, _commands_stream) = futures::channel::mpsc::channel(1000);
+	let (command_sink, commands_stream) = futures::channel::mpsc::channel(1000);
 
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
@@ -460,6 +459,8 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 			client.clone(),
 			backend.clone(),
 			frontier_backend.clone(),
+			3,
+			0,
 			SyncStrategy::Normal,
 		)
 		.for_each(|()| futures::future::ready(())),
@@ -524,9 +525,9 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 							create_inherent_data_providers: move |_, ()| async move {
 								let mock_timestamp = MockTimestampInherentDataProvider;
 
-								let dynamic_fee = pallet_dynamic_fee::InherentDataProvider(
-									U256::from(target_gas_price),
-								);
+								let dynamic_fee = fp_dynamic_fee::InherentDataProvider(U256::from(
+									target_gas_price,
+								));
 
 								Ok((mock_timestamp, dynamic_fee))
 							},
@@ -550,9 +551,9 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 							create_inherent_data_providers: move |_, ()| async move {
 								let mock_timestamp = MockTimestampInherentDataProvider;
 
-								let dynamic_fee = pallet_dynamic_fee::InherentDataProvider(
-									U256::from(target_gas_price),
-								);
+								let dynamic_fee = fp_dynamic_fee::InherentDataProvider(U256::from(
+									target_gas_price,
+								));
 
 								Ok((mock_timestamp, dynamic_fee))
 							},
@@ -586,7 +587,6 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 				sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 			let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
-			let raw_slot_duration = slot_duration.slot_duration();
 			let target_gas_price = cli.run.target_gas_price;
 
 			let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _, _>(
@@ -600,13 +600,13 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 						let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 						let slot =
-							sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_duration(
+							sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 								*timestamp,
-								raw_slot_duration,
+								slot_duration,
 							);
 
 						let dynamic_fee =
-							pallet_dynamic_fee::InherentDataProvider(U256::from(target_gas_price));
+							fp_dynamic_fee::InherentDataProvider(U256::from(target_gas_price));
 
 						Ok((timestamp, slot, dynamic_fee))
 					},

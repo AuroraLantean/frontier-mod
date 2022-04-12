@@ -26,6 +26,7 @@ use crate::types::{
 	BlockNumber, Bytes, CallRequest, FeeHistory, Filter, FilterChanges, Index, Log, Receipt,
 	RichBlock, SyncStatus, Transaction, TransactionRequest, Work,
 };
+
 pub use rpc_impl_EthApi::gen_server::EthApi as EthApiServer;
 pub use rpc_impl_EthFilterApi::gen_server::EthFilterApi as EthFilterApiServer;
 
@@ -187,6 +188,11 @@ pub trait EthApi {
 		newest_block: BlockNumber,
 		reward_percentiles: Option<Vec<f64>>,
 	) -> Result<FeeHistory>;
+
+	/// Introduced in EIP-1159, a Geth-specific and simplified priority fee oracle.
+	/// Leverages the already existing fee history cache.
+	#[rpc(name = "eth_maxPriorityFeePerGas")]
+	fn max_priority_fee_per_gas(&self) -> Result<U256>;
 }
 
 /// Eth filters rpc api (polling).
